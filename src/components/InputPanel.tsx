@@ -12,6 +12,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { ParsedDocument } from "@/lib/types";
+import type { OcrProgress } from "@/lib/ocr";
 
 interface Props {
   accent: "violet" | "cyan";
@@ -45,6 +46,10 @@ export default function InputPanel({
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<ParsedDocument | null>(null);
+  // Kept only so a failed upload can offer OCR on the exact same bytes
+  // without asking the user to pick the file again.
+  const [scannedFile, setScannedFile] = useState<File | null>(null);
+  const [ocrProgress, setOcrProgress] = useState<OcrProgress | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const tone = ACCENT[accent];
@@ -54,6 +59,7 @@ export default function InputPanel({
     async (file: File) => {
       setParsing(true);
       setError(null);
+      setScannedFile(null);
       try {
         const body = new FormData();
         body.append("file", file);
@@ -62,6 +68,7 @@ export default function InputPanel({
 
         if (!res.ok) {
           setError(data.error ?? "Could not read that file.");
+          if (data.scanned) setScannedFile(file);
           return;
         }
         onChange(data.text);
@@ -70,6 +77,34 @@ export default function InputPanel({
         setError("Upload failed. Check your connection and try again.");
       } finally {
         setParsing(false);
+      }
+    },
+    [onChange],
+  );
+
+  const handleOcr = useCallback(
+    async (file: File) => {
+      setParsing(true);
+      setError(null);
+      setOcrProgress(null);
+      try {
+        // Dynamic import: tesseract.js's worker/WASM plumbing has no reason
+        // to be in the initial bundle when most uploads never need it.
+        const { ocrPdf } = await import("@/lib/ocr");
+        const text = await ocrPdf(file, setOcrProgress);
+        const cleaned = text.trim();
+        if (cleaned.length < 40) {
+          setError("OCR couldn't find readable text in that scan either. Try pasting the content instead.");
+          return;
+        }
+        onChange(cleaned);
+        setSource({ text: cleaned, filename: file.name, chars: cleaned.length });
+        setScannedFile(null);
+      } catch {
+        setError("OCR failed partway through. Try again, or paste the content instead.");
+      } finally {
+        setParsing(false);
+        setOcrProgress(null);
       }
     },
     [onChange],
@@ -152,20 +187,38 @@ export default function InputPanel({
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm text-ink">
-                {parsing ? "Reading document…" : dragging ? "Drop it" : "Drop a PDF, DOCX or TXT"}
+                {ocrProgress
+                  ? `OCR — page ${ocrProgress.page} of ${ocrProgress.pages}`
+                  : parsing
+                    ? "Reading document…"
+                    : dragging
+                      ? "Drop it"
+                      : "Drop a PDF, DOCX or TXT"}
               </span>
               <span className="block truncate text-xs text-ink-faint">
-                {source
-                  ? `${source.filename}${source.pages ? ` · ${source.pages} page${source.pages === 1 ? "" : "s"}` : ""} · ${source.chars.toLocaleString()} chars`
-                  : "or click to browse — the text stays editable"}
+                {ocrProgress
+                  ? `${ocrProgress.status} · ${Math.round(ocrProgress.progress * 100)}%`
+                  : source
+                    ? `${source.filename}${source.pages ? ` · ${source.pages} page${source.pages === 1 ? "" : "s"}` : ""} · ${source.chars.toLocaleString()} chars`
+                    : "or click to browse — the text stays editable"}
               </span>
             </span>
           </button>
 
           {error && (
-            <p className="mt-2 rounded-lg border border-rose/30 bg-rose/5 px-3 py-2 text-xs leading-relaxed text-rose">
-              {error}
-            </p>
+            <div className="mt-2 rounded-lg border border-rose/30 bg-rose/5 px-3 py-2 text-xs leading-relaxed text-rose">
+              <p>{error}</p>
+              {scannedFile && (
+                <button
+                  type="button"
+                  onClick={() => void handleOcr(scannedFile)}
+                  disabled={parsing}
+                  className="mt-1.5 rounded-md border border-rose/40 px-2 py-1 text-[0.7rem] font-medium text-rose transition-colors hover:bg-rose/10 disabled:opacity-60"
+                >
+                  Try in-browser OCR instead — runs on your machine, may take a minute
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}

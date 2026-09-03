@@ -104,10 +104,16 @@ export async function POST(request: Request) {
     const cleaned = tidy(text);
 
     if (cleaned.length < 40) {
+      const isPdf = file.type === "application/pdf" || ext === "pdf";
       return NextResponse.json(
         {
-          error:
-            "Almost no text came out of that file. If it's a scanned PDF, the text is an image — paste the content instead.",
+          error: isPdf
+            ? "Almost no text came out of that file — it's likely a scanned PDF, where the page is an image rather than text."
+            : "Almost no text came out of that file. Try a different export, or paste the content instead.",
+          // Lets the client offer an in-browser OCR fallback instead of a
+          // dead end. Only meaningful for PDFs — a DOCX or TXT with no text
+          // has nothing an image-based OCR pass could recover.
+          scanned: isPdf,
         },
         { status: 422 },
       );

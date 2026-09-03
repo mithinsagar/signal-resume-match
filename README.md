@@ -13,7 +13,7 @@ re-running the scorer, not estimated.
 [![License](https://img.shields.io/badge/license-Apache%202.0-181B22?style=flat-square)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-50%20passing-181B22?style=flat-square)](tests/analyze.test.ts)
 
-`Next.js 15` `TypeScript` `Tailwind CSS v4` `Motion` `unpdf` `Vitest`
+`Next.js 15` `TypeScript` `Tailwind CSS v4` `Motion` `unpdf` `Tesseract.js` `Vitest`
 
 ---
 
@@ -75,8 +75,15 @@ reproducible would be dishonest. It's a hint, shown as one, nothing more.
 quantified impact, action verbs, keyword coverage. A perfect match that a parser chokes on never
 reaches a human, which is a separate question from whether the match is good.
 
-**Document parsing.** PDF, DOCX, TXT and Markdown, extracted server-side and shown as editable
-text. The extracted text is deliberately visible rather than hidden behind a filename chip: PDF
+**Document parsing, with an OCR fallback for scanned PDFs.** PDF, DOCX, TXT and Markdown, extracted
+server-side and shown as editable text. When a PDF comes back with almost no text — the page is an
+image rather than real text, as any scanned document is — Signal offers to run OCR on it right there.
+That step happens entirely in your browser: each page is rasterized to a canvas and read with
+[Tesseract.js](https://github.com/naptha/tesseract.js) (a WebAssembly build of the Tesseract OCR
+engine), never uploaded anywhere. It's client-side by design, not just by convenience — a scanned
+multi-page resume is exactly the kind of job a serverless function's timeout was built to kill, and
+running it in the browser instead means no ceiling on how long a scan is allowed to take. The
+extracted text is deliberately visible rather than hidden behind a filename chip either way: PDF
 extraction is lossy often enough that you need to be able to notice when it mangles something.
 
 **History.** Stored in `localStorage` and nowhere else.
@@ -91,7 +98,11 @@ A resume and a job description are two of the most personal documents in a job s
   parse request and is discarded.
 - There is no database, no account, and no telemetry.
 - History lives in your browser's `localStorage`.
-- The only outbound call is the optional narrative request, and only if you configured a key.
+- OCR for scanned PDFs runs entirely client-side — the file never leaves your machine for that step.
+  The only network calls it makes are one-time CDN fetches of the OCR engine itself, not your
+  document.
+- The only outbound call carrying your content is the optional narrative request, and only if you
+  configured a key.
 
 ---
 
@@ -137,6 +148,7 @@ src/
 │   ├── llm.ts          optional narrative, 4 providers, fails to null
 │   ├── history.ts      localStorage persistence
 │   ├── samples.ts      built-in demo pair
+│   ├── ocr.ts          client-side OCR fallback for scanned PDFs
 │   └── types.ts        the contract between the two layers
 ├── app/
 │   ├── api/parse/      PDF / DOCX / TXT → text
@@ -185,10 +197,12 @@ exists to argue against.
   see "A proficiency signal, held apart from the score" above.
 - **Ontology-bounded.** A skill outside the 143 in `ontology.ts` is invisible to the scorer. The
   ontology is deliberately readable and easy to extend for exactly this reason.
-- **Scanned PDFs won't work.** If the text is an image, there is no text to extract — the parser
-  says so rather than returning an empty document. Solving this means OCR, which on a serverless
-  function is a real reliability question (cold-start latency, timeout risk on a multi-page scan) —
-  deliberately left out rather than shipped as a feature that sometimes silently fails.
+- **Scanned PDFs need a second, slower pass.** OCR runs in your browser, not on the server, which
+  avoids a serverless timeout but means it's bounded by your machine instead — a many-page scan can
+  take real time, shown as it goes with a page-by-page progress readout rather than a spinner.
+  Accuracy also depends on scan quality the way any OCR does: a crisp export reads cleanly, a
+  crooked phone photo won't. The first run in a session downloads Tesseract's ~4 MB WebAssembly
+  engine and its English language data from a CDN; both are cached by the browser afterward.
 
 ---
 
