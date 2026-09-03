@@ -1,0 +1,267 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Signal — design tokens
+
+   The palette is built around the product metaphor: two documents, and the
+   alignment between them. Violet is the resume side, cyan the role side, and
+   the gradient between them is used only where the two actually meet — the
+   score ring, the connective lines in the field, the primary action. Result
+   colours (spring/amber/rose) are reserved strictly for match quality so a
+   colour never means two different things on the same screen.
+
+   Everything is tuned for a dark canvas. There is no light mode: the product
+   is a focused analytical surface, and a single committed treatment reads more
+   deliberate than two half-tuned ones.
+--------------------------------------------------------------------------- */
+
+@theme {
+  --color-void: #05060b;
+  --color-surface: #0a0c14;
+  --color-elevated: #10131e;
+  --color-raised: #171b28;
+  --color-line: #1e2331;
+  --color-line-bright: #2b3242;
+
+  --color-ink: #eceef5;
+  --color-ink-dim: #a4adc2;
+  --color-ink-faint: #6c7488;
+
+  --color-violet: #7c5cff;
+  --color-violet-soft: #a78bfa;
+  --color-cyan: #22d3ee;
+  --color-cyan-soft: #67e8f9;
+
+  --color-spring: #4ade80;
+  --color-amber: #fbbf24;
+  --color-rose: #fb7185;
+
+  --font-display: var(--font-instrument), Georgia, serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--color-void);
+}
+
+body {
+  background: var(--color-void);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* The field canvas sits behind everything and never intercepts input.
+   The explicit sizing is load-bearing: <canvas> is a replaced element with an
+   intrinsic 300x150 size, so `inset: 0` alone leaves it that size in the corner
+   instead of stretching it across the viewport. */
+.field-layer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.above-field {
+  position: relative;
+  z-index: 1;
+}
+
+/* --- typography ---------------------------------------------------------- */
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 0.95;
+}
+
+.mono-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
+/* --- surfaces ------------------------------------------------------------ */
+
+.panel {
+  background: color-mix(in oklab, var(--color-surface) 82%, transparent);
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+.panel-raised {
+  background: color-mix(in oklab, var(--color-elevated) 88%, transparent);
+  border: 1px solid var(--color-line);
+  border-radius: 1.25rem;
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+}
+
+/* A one-pixel highlight along the top edge — reads as light catching a bevel
+   and is what keeps the flat panels from looking like plain rectangles. */
+.bevel {
+  position: relative;
+}
+.bevel::before {
+  content: "";
+  position: absolute;
+  inset-inline: 1.25rem;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--color-violet) 55%, transparent),
+    color-mix(in oklab, var(--color-cyan) 45%, transparent),
+    transparent
+  );
+  opacity: 0.55;
+}
+
+/* --- accents ------------------------------------------------------------- */
+
+.text-gradient {
+  background: linear-gradient(
+    100deg,
+    var(--color-violet-soft) 0%,
+    var(--color-cyan-soft) 55%,
+    var(--color-violet-soft) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: sheen 9s ease-in-out infinite;
+}
+
+@keyframes sheen {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.rule-glow {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--color-violet) 60%, transparent),
+    color-mix(in oklab, var(--color-cyan) 50%, transparent),
+    transparent
+  );
+}
+
+/* --- controls ------------------------------------------------------------ */
+
+textarea,
+input {
+  font-family: inherit;
+}
+
+textarea::placeholder {
+  color: var(--color-ink-faint);
+}
+
+textarea:focus-visible,
+input:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--color-violet) 70%, transparent);
+  outline-offset: 2px;
+}
+
+/* Scrollbars styled to disappear into the surface rather than punching a
+   bright rectangle through a dark panel. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line-bright);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--color-violet) 45%, var(--color-line-bright));
+  background-clip: content-box;
+}
+
+/* --- motion primitives --------------------------------------------------- */
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.92); opacity: 0.7; }
+  70% { transform: scale(1.25); opacity: 0; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -10px, 0); }
+}
+
+@keyframes scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(400%); }
+}
+
+.animate-drift {
+  animation: drift 7s ease-in-out infinite;
+}
+
+/* Entrance animation for above-the-fold content.
+   Deliberately CSS rather than framer-motion: a JS entrance animation ships
+   `style="opacity:0"` in the server-rendered HTML, which leaves the headline
+   invisible until hydration finishes — and permanently invisible if the bundle
+   fails. Here the hidden state lives only inside the keyframes, so the worst
+   case is content that appears without animating. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 24px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise-in {
+  animation: rise-in 0.85s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.rise-in-delayed {
+  animation: rise-in 0.85s 0.12s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Respect the OS setting — the field and every transition drop to static. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
