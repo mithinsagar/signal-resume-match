@@ -2,9 +2,16 @@
 
 **Explainable resume-to-role matching.** Most tools hand you a score. This one shows its work.
 
+**→ [Try it live](https://signal-resume-match.vercel.app)** — there's a sample resume and posting
+built in, so you can see the whole flow without pasting anything of your own.
+
 Drop in a resume and a job posting. Signal names every skill the role asks for, which of them the
 resume already evidences, and exactly how many points each remaining gap is costing — computed by
 re-running the scorer, not estimated.
+
+[![Live demo](https://img.shields.io/badge/Live%20demo-6366F1?style=flat-square)](https://signal-resume-match.vercel.app)
+[![License](https://img.shields.io/badge/license-Apache%202.0-181B22?style=flat-square)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-29%20passing-181B22?style=flat-square)](tests/analyze.test.ts)
 
 `Next.js 15` `TypeScript` `Tailwind CSS v4` `Motion` `unpdf` `Vitest`
 
