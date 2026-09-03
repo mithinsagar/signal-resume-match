@@ -2,14 +2,24 @@ import { describe, expect, it } from "vitest";
 import { __internals, analyzeMatch } from "../src/lib/analyze";
 import { SAMPLE_JOB, SAMPLE_RESUME } from "../src/lib/samples";
 
-const { aliasPattern, extractRequirements, extractSkills, scoreAgainst, bandFor } = __internals;
+const {
+  aliasPattern,
+  extractRequirements,
+  extractSkills,
+  buildUnits,
+  groupAlternatives,
+  scoreAgainst,
+  bandFor,
+  classifyProficiency,
+} = __internals;
 
 /**
  * The scorer is the only thing in this app a user is asked to trust, so the
- * tests concentrate on the two places it could quietly be wrong: token
- * boundaries (a matcher that fires inside other words inflates every score)
- * and requirement weighting (the thing that makes a must-have gap cost more
- * than a nice-to-have one).
+ * tests concentrate on the places it could quietly be wrong: token boundaries
+ * (a matcher that fires inside other words inflates every score), requirement
+ * weighting (must-have vs nice-to-have), "X or Y" alternatives (double-
+ * counting a gap that's actually satisfied), and the proficiency heuristic
+ * staying strictly out of the score it's never supposed to touch.
  */
 
 describe("aliasPattern boundaries", () => {
@@ -18,7 +28,6 @@ describe("aliasPattern boundaries", () => {
   });
 
   it("does not fire inside a longer word", () => {
-    // The classic false positive: "r" matching inside every other word.
     expect(aliasPattern("r").test("strong communicator")).toBe(false);
     expect(aliasPattern("go").test("google cloud platform")).toBe(false);
     expect(aliasPattern("java").test("javascript developer")).toBe(false);
@@ -49,7 +58,6 @@ describe("aliasPattern boundaries", () => {
   });
 
   it("still refuses to match across a dot on the leading side", () => {
-    // "js" must not fire inside "node.js" and double-count the same fact.
     expect(aliasPattern("js").test("node.js backend")).toBe(false);
   });
 });
@@ -72,63 +80,189 @@ describe("skill extraction", () => {
   });
 });
 
+describe("proficiency heuristic", () => {
+  it("reads years of experience as demonstrated", () => {
+    expect(classifyProficiency("5 years of hands-on python development")).toBe("demonstrated");
+  });
+
+  it("reads ownership language as demonstrated", () => {
+    expect(classifyProficiency("led the migration to kubernetes in production")).toBe(
+      "demonstrated",
+    );
+  });
+
+  it("reads hedged language as learning", () => {
+    expect(classifyProficiency("familiar with rust from a personal project")).toBe("learning");
+  });
+
+  it("defaults to a plain mention when neither signal is present", () => {
+    expect(classifyProficiency("skills: python, sql, docker")).toBe("mentioned");
+  });
+
+  it("prefers demonstrated over learning when both appear in the window", () => {
+    // Order matters: a strong signal should win even if a weaker phrase is
+    // also nearby, rather than the heuristic flip-flopping on phrase order.
+    expect(classifyProficiency("5 years building production systems, familiar with the basics")).toBe(
+      "demonstrated",
+    );
+  });
+
+  it("is wired into extractSkills for a matched resume skill", () => {
+    const found = extractSkills("Built and shipped production Kubernetes clusters for 4 years.");
+    expect(found.get("Kubernetes")?.proficiency).toBe("demonstrated");
+  });
+
+  it("never appears on a job posting's requirements — only resume-side hits", () => {
+    const { hits } = extractRequirements("Must have 5 years of production Python experience.");
+    expect(hits.get("Python")?.proficiency).toBeUndefined();
+  });
+});
+
 describe("requirement weighting", () => {
   it("weights a must-have above a nice-to-have", () => {
-    const reqs = extractRequirements(
+    const { hits } = extractRequirements(
       ["Must have strong Python experience.", "Familiarity with Kafka is a plus."].join("\n"),
     );
-    expect(reqs.get("Python")!.weight).toBeGreaterThan(reqs.get("Kafka")!.weight);
+    expect(hits.get("Python")!.weight).toBeGreaterThan(hits.get("Kafka")!.weight);
   });
 
   it("carries a section heading down to the lines beneath it", () => {
-    const reqs = extractRequirements(
-      ["Requirements:", "- Docker in production", "", "Nice to have:", "- Terraform"].join("\n"),
+    const { hits } = extractRequirements(
+      ["Requirements:", "- Docker in production", "", "Nice to have:", "- Ansible"].join("\n"),
     );
-    expect(reqs.get("Docker")!.weight).toBe(__internals.WEIGHT_REQUIRED);
-    expect(reqs.get("Terraform")!.weight).toBe(__internals.WEIGHT_NICE);
+    expect(hits.get("Docker")!.weight).toBe(__internals.WEIGHT_REQUIRED);
+    expect(hits.get("Ansible")!.weight).toBe(__internals.WEIGHT_NICE);
   });
 
   it("lets a line's own marker override the section it sits in", () => {
-    const reqs = extractRequirements(
+    const { hits } = extractRequirements(
       ["Requirements:", "- Kubernetes", "- Exposure to Rust is a bonus"].join("\n"),
     );
-    expect(reqs.get("Kubernetes")!.weight).toBe(__internals.WEIGHT_REQUIRED);
-    expect(reqs.get("Rust")!.weight).toBe(__internals.WEIGHT_NICE);
+    expect(hits.get("Kubernetes")!.weight).toBe(__internals.WEIGHT_REQUIRED);
+    expect(hits.get("Rust")!.weight).toBe(__internals.WEIGHT_NICE);
   });
 
   it("keeps the strongest framing when a skill appears twice", () => {
-    const reqs = extractRequirements(
+    const { hits } = extractRequirements(
       ["Familiarity with AWS is a plus.", "Must have deep AWS knowledge."].join("\n"),
     );
-    expect(reqs.get("AWS")!.weight).toBe(__internals.WEIGHT_REQUIRED);
+    expect(hits.get("AWS")!.weight).toBe(__internals.WEIGHT_REQUIRED);
+  });
+});
+
+describe("alternatives grouping — 'X or Y' clauses", () => {
+  it("groups a simple two-way 'or'", () => {
+    const groups = groupAlternatives("must have pytorch or tensorflow experience");
+    expect(groups).toEqual([["PyTorch", "TensorFlow"]]);
+  });
+
+  it("groups a slash-separated list with no 'or' at all", () => {
+    const groups = groupAlternatives("experience with aws/gcp/azure required");
+    expect(groups.length).toBe(1);
+    expect(new Set(groups[0])).toEqual(new Set(["AWS", "GCP", "Azure"]));
+  });
+
+  it("groups a comma chain that ends in 'or'", () => {
+    const groups = groupAlternatives("experience with react, vue, or angular");
+    expect(groups.length).toBe(1);
+    expect(new Set(groups[0])).toEqual(new Set(["React", "Vue", "Angular"]));
+  });
+
+  it("does NOT group a plain comma list with no 'or' or '/'", () => {
+    // "Python, SQL and Docker" means all three, not any one of them — the most
+    // common shape a real requirements bullet takes, and the case the grouping
+    // logic must not touch.
+    const groups = groupAlternatives("experience with python, sql and docker");
+    expect(groups).toEqual([]);
+  });
+
+  it("does not group skills separated by an unrelated clause", () => {
+    const groups = groupAlternatives("python required, and separately docker is a plus");
+    expect(groups).toEqual([]);
+  });
+
+  it("returns nothing for a line with fewer than two skills", () => {
+    expect(groupAlternatives("must have python")).toEqual([]);
+    expect(groupAlternatives("no skills named here")).toEqual([]);
+  });
+});
+
+describe("buildUnits", () => {
+  it("collapses a group into one unit satisfied by any member", () => {
+    const { hits, groups } = extractRequirements("Must have PyTorch or TensorFlow.");
+    const units = buildUnits(hits, groups);
+    expect(units).toHaveLength(1);
+    expect(new Set(units[0].names)).toEqual(new Set(["PyTorch", "TensorFlow"]));
+  });
+
+  it("a satisfied group's weight matches the stronger framing on the line", () => {
+    const { hits, groups } = extractRequirements("Must have PyTorch or TensorFlow.");
+    const units = buildUnits(hits, groups);
+    expect(units[0].weight).toBe(__internals.WEIGHT_REQUIRED);
+  });
+
+  it("leaves ungrouped skills as their own single-member units", () => {
+    const { hits, groups } = extractRequirements("Must have Python and SQL.");
+    const units = buildUnits(hits, groups);
+    expect(units.map((u) => u.names)).toEqual(
+      expect.arrayContaining([["Python"], ["SQL"]]),
+    );
+  });
+
+  it("does not let a skill be claimed by two overlapping groups", () => {
+    // Constructed rather than natural language: two groups both naming "Python"
+    // must not double-count its weight in totalWeight.
+    const hits = new Map([
+      ["Python", { skill: "Python", category: "languages" as const, weight: 3 }],
+      ["Go", { skill: "Go", category: "languages" as const, weight: 3 }],
+      ["Rust", { skill: "Rust", category: "languages" as const, weight: 1 }],
+    ]);
+    const units = buildUnits(hits, [
+      ["Python", "Go"],
+      ["Python", "Rust"],
+    ]);
+    const pythonUnits = units.filter((u) => u.names.includes("Python"));
+    expect(pythonUnits).toHaveLength(1);
   });
 });
 
 describe("scoring", () => {
-  it("is 100 when every requirement is held", () => {
-    const reqs = extractRequirements("Required: Python, Docker, AWS");
-    const held = new Set(["Python", "Docker", "AWS"]);
-    expect(scoreAgainst(reqs, held).score).toBe(100);
+  it("is 100 when every unit is held", () => {
+    const { hits, groups } = extractRequirements("Required: Python, Docker, AWS");
+    const units = buildUnits(hits, groups);
+    expect(scoreAgainst(units, new Set(["Python", "Docker", "AWS"])).score).toBe(100);
   });
 
   it("is 0 when none are held", () => {
-    const reqs = extractRequirements("Required: Python, Docker, AWS");
-    expect(scoreAgainst(reqs, new Set()).score).toBe(0);
+    const { hits, groups } = extractRequirements("Required: Python, Docker, AWS");
+    const units = buildUnits(hits, groups);
+    expect(scoreAgainst(units, new Set()).score).toBe(0);
   });
 
   it("does not divide by zero on a posting with no recognisable skills", () => {
-    const reqs = extractRequirements("We are looking for a wonderful human being.");
-    expect(scoreAgainst(reqs, new Set()).score).toBe(0);
+    const { hits, groups } = extractRequirements("We are looking for a wonderful human being.");
+    const units = buildUnits(hits, groups);
+    expect(scoreAgainst(units, new Set()).score).toBe(0);
   });
 
   it("penalises a missing must-have more than a missing nice-to-have", () => {
     const job = ["Must have Python.", "Familiarity with Kafka is a plus."].join("\n");
-    const reqs = extractRequirements(job);
+    const { hits, groups } = extractRequirements(job);
+    const units = buildUnits(hits, groups);
 
-    const missingMustHave = scoreAgainst(reqs, new Set(["Kafka"])).score;
-    const missingNiceToHave = scoreAgainst(reqs, new Set(["Python"])).score;
+    const missingMustHave = scoreAgainst(units, new Set(["Kafka"])).score;
+    const missingNiceToHave = scoreAgainst(units, new Set(["Python"])).score;
 
     expect(missingNiceToHave).toBeGreaterThan(missingMustHave);
+  });
+
+  it("an 'or' group is fully satisfied by just one of its members", () => {
+    const { hits, groups } = extractRequirements("Must have PyTorch or TensorFlow.");
+    const units = buildUnits(hits, groups);
+    expect(scoreAgainst(units, new Set(["PyTorch"])).score).toBe(100);
+    expect(scoreAgainst(units, new Set(["TensorFlow"])).score).toBe(100);
+    expect(scoreAgainst(units, new Set(["PyTorch", "TensorFlow"])).score).toBe(100);
+    expect(scoreAgainst(units, new Set()).score).toBe(0);
   });
 
   it("bands the full range", () => {
@@ -157,10 +291,37 @@ describe("analyzeMatch end to end", () => {
     expect(result.score).toBeLessThanOrEqual(100);
   });
 
-  it("puts every requirement in exactly one of matched or missing", () => {
-    const total = result.matched.length + result.missing.length;
-    expect(total).toBe(result.stats.requirementsDetected);
+  it("resolves the sample's PyTorch-or-TensorFlow clause instead of double-penalising it", () => {
+    // The sample job asks for "PyTorch or TensorFlow"; the sample resume only
+    // has PyTorch. TensorFlow must not show up as a separate gap now that its
+    // alternative is satisfied — this is the exact bug the grouping fixes.
+    expect(result.matched.some((m) => m.skill === "PyTorch")).toBe(true);
+    expect(result.missing.some((m) => m.skill === "TensorFlow")).toBe(false);
 
+    const pytorch = result.matched.find((m) => m.skill === "PyTorch")!;
+    expect(pytorch.alternatives).toContain("TensorFlow");
+  });
+
+  it("every hit is accounted for: matched, missing, or an unselected member of a satisfied group", () => {
+    const { hits, groups } = extractRequirements(SAMPLE_JOB);
+    const units = buildUnits(hits, groups);
+    const explained = new Set([
+      ...result.matched.map((m) => m.skill),
+      ...result.missing.map((m) => m.skill),
+    ]);
+
+    for (const unit of units) {
+      const satisfied = unit.names.some((n) => explained.has(n) && result.matched.some((m) => m.skill === n));
+      if (satisfied) {
+        // At least the held member must be explained; unheld siblings are
+        // intentionally dropped rather than reported as false gaps.
+        continue;
+      }
+      for (const name of unit.names) expect(explained.has(name)).toBe(true);
+    }
+  });
+
+  it("never lists the same skill in both matched and missing", () => {
     const overlap = result.matched.filter((m) =>
       result.missing.some((x) => x.skill === m.skill),
     );
@@ -171,11 +332,9 @@ describe("analyzeMatch end to end", () => {
     const matched = result.matched.map((m) => m.skill);
     const missing = result.missing.map((m) => m.skill);
 
-    // The sample resume genuinely has these; the posting genuinely asks for them.
     expect(matched).toContain("Python");
     expect(matched).toContain("PyTorch");
 
-    // And genuinely lacks these, which the posting lists as hard requirements.
     expect(missing).toContain("Kubernetes");
     expect(missing).toContain("Terraform");
   });
@@ -183,18 +342,22 @@ describe("analyzeMatch end to end", () => {
   it("never suggests a counterfactual for a skill already held", () => {
     const held = new Set(result.matched.map((m) => m.skill));
     for (const cf of result.counterfactuals) {
-      expect(held.has(cf.skill)).toBe(false);
+      for (const name of cf.skill.split(" or ")) {
+        expect(held.has(name)).toBe(false);
+      }
     }
   });
 
   it("reports counterfactual deltas that the scorer actually reproduces", () => {
-    const reqs = extractRequirements(SAMPLE_JOB);
+    const { hits, groups } = extractRequirements(SAMPLE_JOB);
+    const units = buildUnits(hits, groups);
     const held = new Set(extractSkills(SAMPLE_RESUME).keys());
 
     for (const cf of result.counterfactuals) {
+      const firstName = cf.skill.split(" or ")[0];
       const hypothetical = new Set(held);
-      hypothetical.add(cf.skill);
-      const actual = scoreAgainst(reqs, hypothetical).score - result.score;
+      hypothetical.add(firstName);
+      const actual = scoreAgainst(units, hypothetical).score - result.score;
       expect(cf.delta).toBe(actual);
     }
   });
@@ -205,9 +368,15 @@ describe("analyzeMatch end to end", () => {
   });
 
   it("classifies extras as skills the posting never asked for", () => {
-    const requirements = new Set(extractRequirements(SAMPLE_JOB).keys());
+    const { hits } = extractRequirements(SAMPLE_JOB);
     for (const extra of result.extra) {
-      expect(requirements.has(extra.skill)).toBe(false);
+      expect(hits.has(extra.skill)).toBe(false);
+    }
+  });
+
+  it("gives every matched skill a proficiency reading", () => {
+    for (const m of result.matched) {
+      expect(["demonstrated", "mentioned", "learning"]).toContain(m.proficiency);
     }
   });
 

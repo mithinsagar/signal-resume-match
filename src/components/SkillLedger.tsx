@@ -29,8 +29,29 @@ function weightLabel(weight: number): string | null {
   return null;
 }
 
+/**
+ * Proficiency badge copy. Deliberately silent on "mentioned" — that's the
+ * default, uncertain reading, and a badge on every single chip would read as
+ * more confidence than a text-proximity heuristic has earned. It only speaks
+ * up when it found something worth saying.
+ */
+const PROFICIENCY_BADGE: Partial<Record<NonNullable<SkillHit["proficiency"]>, string>> = {
+  demonstrated: "proven",
+  learning: "early",
+};
+
+function buildTitle(hit: SkillHit): string {
+  const parts = [CATEGORY_LABELS[hit.category]];
+  if (hit.evidence) parts.push(`found as "${hit.evidence}"`);
+  if (hit.alternatives?.length) {
+    parts.push(`posting accepts: ${[hit.skill, ...hit.alternatives].join(" or ")}`);
+  }
+  return parts.join(" · ");
+}
+
 function Chip({ hit, tone, index }: { hit: SkillHit; tone: string; index: number }) {
-  const badge = weightLabel(hit.weight);
+  const weightBadge = weightLabel(hit.weight);
+  const proficiencyBadge = hit.proficiency && PROFICIENCY_BADGE[hit.proficiency];
 
   return (
     <motion.div
@@ -47,11 +68,24 @@ function Chip({ hit, tone, index }: { hit: SkillHit; tone: string; index: number
         borderColor: `color-mix(in oklab, ${tone} 26%, transparent)`,
         background: `color-mix(in oklab, ${tone} 6%, transparent)`,
       }}
-      title={`${CATEGORY_LABELS[hit.category]}${hit.evidence ? ` · found as "${hit.evidence}"` : ""}`}
+      title={buildTitle(hit)}
     >
       <span className="size-1.5 shrink-0 rounded-full" style={{ background: tone }} />
       <span className="text-sm text-ink">{hit.skill}</span>
-      {badge && <span className="mono-label !text-[0.6rem]">{badge}</span>}
+      {hit.alternatives?.length ? (
+        <span className="mono-label !text-[0.6rem]" style={{ color: "var(--color-cyan)" }}>
+          or {hit.alternatives.join("/")}
+        </span>
+      ) : null}
+      {proficiencyBadge && (
+        <span
+          className="mono-label !text-[0.6rem]"
+          style={{ color: "var(--color-spring)" }}
+        >
+          {proficiencyBadge}
+        </span>
+      )}
+      {weightBadge && <span className="mono-label !text-[0.6rem]">{weightBadge}</span>}
     </motion.div>
   );
 }

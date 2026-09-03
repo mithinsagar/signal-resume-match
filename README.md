@@ -11,7 +11,7 @@ re-running the scorer, not estimated.
 
 [![Live demo](https://img.shields.io/badge/Live%20demo-6366F1?style=flat-square)](https://signal-resume-match.vercel.app)
 [![License](https://img.shields.io/badge/license-Apache%202.0-181B22?style=flat-square)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-29%20passing-181B22?style=flat-square)](tests/analyze.test.ts)
+[![Tests](https://img.shields.io/badge/tests-50%20passing-181B22?style=flat-square)](tests/analyze.test.ts)
 
 `Next.js 15` `TypeScript` `Tailwind CSS v4` `Motion` `unpdf` `Vitest`
 
@@ -45,7 +45,7 @@ not a degraded mode; it is the product working as designed.
 
 ## What it actually does
 
-**Alias-aware skill matching.** 99 canonical skills across 10 categories, 312 surface forms.
+**Alias-aware skill matching.** 143 canonical skills across 10 categories, 399 surface forms.
 "postgres", "PostgreSQL" and "psql" resolve to one skill, so the tool doesn't report a gap that
 isn't there — the most common way naive keyword matching produces a wrong answer.
 
@@ -54,9 +54,22 @@ skill under "Must have" is weighted 3×; one under "Nice to have" 1×. Section h
 for the lines beneath them, and a line carrying its own marker overrides the section it sits in —
 because that is how postings are really written.
 
-**Measured counterfactuals.** For every missing skill, the scorer is re-run with that skill present.
-The "+7 points" shown to the user is the delta they would actually get, not a heuristic. A test
-asserts this: every reported delta is reproduced independently from the raw scorer.
+**"X or Y" alternatives.** A posting asking for "PyTorch or TensorFlow" is one requirement, not two —
+Signal groups same-line alternatives joined by "or" or "/" (including chains like "React, Vue, or
+Angular") into a single unit that any one member satisfies. Having only PyTorch no longer shows
+TensorFlow as a false gap, and the category breakdown counts the pair as one requirement, not two, so
+it never contradicts the headline score.
+
+**Measured counterfactuals.** For every unsatisfied requirement, the scorer is re-run with that skill
+present. The "+7 points" shown to the user is the delta they would actually get, not a heuristic. A
+test asserts this: every reported delta is reproduced independently from the raw scorer.
+
+**A proficiency signal, held apart from the score.** Matched skills get an auxiliary "proven" or
+"early" tag when the surrounding text carries a real signal — years of experience or ownership
+language ("led", "shipped", "in production") for "proven"; hedged language ("familiar with",
+"personal project") for "early". This is text-proximity matching, not language understanding, and it
+never touches the score itself — folding a fuzzy confidence signal into a number this README calls
+reproducible would be dishonest. It's a hint, shown as one, nothing more.
 
 **Screening readiness.** Six format checks — contact parseability, length, standard sections,
 quantified impact, action verbs, keyword coverage. A perfect match that a parser chokes on never
@@ -93,7 +106,7 @@ Open <http://localhost:3000>. There's a sample resume and posting built in — c
 on both sides to see the whole flow without pasting anything of your own.
 
 ```bash
-npm test        # 29 unit tests over the scoring engine
+npm test        # 50 unit tests over the scoring engine
 npm run build   # production build
 npm run typecheck
 ```
@@ -120,7 +133,7 @@ and default model differ. Override the model with `LLM_MODEL` if a default goes 
 src/
 ├── lib/
 │   ├── analyze.ts      the deterministic engine — owns the score, pure
-│   ├── ontology.ts     99 skills, 312 aliases, requirement markers
+│   ├── ontology.ts     143 skills, 399 aliases, requirement + proficiency markers
 │   ├── llm.ts          optional narrative, 4 providers, fails to null
 │   ├── history.ts      localStorage persistence
 │   ├── samples.ts      built-in demo pair
@@ -161,16 +174,21 @@ Two details that are load-bearing rather than cosmetic:
 Worth stating plainly, because a matcher that hides its failure modes is the thing this project
 exists to argue against.
 
-- **No understanding of "or" alternatives.** A posting asking for "PyTorch **or** TensorFlow"
-  registers both as requirements, so a resume with only PyTorch shows TensorFlow as a gap. This is
-  visible in the built-in sample. Handling it properly means parsing requirement clauses rather
-  than lines, which is a real piece of work rather than a tweak.
-- **Presence, not proficiency.** The engine detects that a skill is *mentioned*. "Familiar with
-  Kubernetes" and "ran Kubernetes in production for four years" score identically.
-- **Ontology-bounded.** A skill outside the 99 in `ontology.ts` is invisible to the scorer. The
+- **"Or" grouping is same-line only.** "PyTorch or TensorFlow" and "React, Vue, or Angular" are
+  correctly read as one requirement each. A posting that spreads an alternative across two lines or
+  buries it in a longer sentence than the grouping's connector-chain logic expects will fall back to
+  treating each skill independently — the older, more conservative behavior, not a crash.
+- **Presence, with a hint at proficiency — not real understanding of it.** Matched skills carry an
+  auxiliary "proven" / "early" tag from nearby language (years of experience, "led", "familiar
+  with"), but this is proximity text-matching over a fixed window, not comprehension. It can be
+  fooled by an unrelated "5 years" two bullets away, and it never influences the score, on purpose —
+  see "A proficiency signal, held apart from the score" above.
+- **Ontology-bounded.** A skill outside the 143 in `ontology.ts` is invisible to the scorer. The
   ontology is deliberately readable and easy to extend for exactly this reason.
 - **Scanned PDFs won't work.** If the text is an image, there is no text to extract — the parser
-  says so rather than returning an empty document.
+  says so rather than returning an empty document. Solving this means OCR, which on a serverless
+  function is a real reliability question (cold-start latency, timeout risk on a multi-page scan) —
+  deliberately left out rather than shipped as a feature that sometimes silently fails.
 
 ---
 

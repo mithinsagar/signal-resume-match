@@ -29,6 +29,19 @@ export interface SkillHit {
   weight: number;
   /** The alias that actually appeared in the text, for evidence display. */
   evidence?: string;
+  /**
+   * Sibling skill names from an "X or Y" clause in the posting — present when
+   * this hit belongs to an alternatives group, absent for a plain requirement.
+   * Does not include the skill's own name.
+   */
+  alternatives?: string[];
+  /**
+   * A heuristic read on how the resume talks about this skill, from text
+   * proximity to language like "5 years" or "familiar with" — not real
+   * language understanding, and never used in the score itself. Only ever set
+   * on resume-side hits (`matched`, `extra`), never on `missing`.
+   */
+  proficiency?: "demonstrated" | "mentioned" | "learning";
 }
 
 /** Per-category scoring, used for the breakdown bars. */

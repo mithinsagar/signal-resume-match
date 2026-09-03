@@ -9,8 +9,9 @@
  * The pipeline:
  *   1. Find every skill mention in both documents (alias-aware, whole-token).
  *   2. Weight each job requirement by how the posting framed it — "must have"
- *      counts for more than "nice to have".
- *   3. Score = matched requirement weight / total requirement weight.
+ *      counts for more than "nice to have" — and collapse "X or Y" alternatives
+ *      into one requirement unit that either side can satisfy.
+ *   3. Score = matched unit weight / total unit weight.
  *   4. Re-run step 3 with each missing skill injected to get a true delta for
  *      the counterfactuals, rather than estimating them.
  */
@@ -19,6 +20,8 @@ import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
   NICE_TO_HAVE_MARKERS,
+  PROFICIENCY_STRONG_MARKERS,
+  PROFICIENCY_WEAK_MARKERS,
   REQUIREMENT_MARKERS,
   SKILLS,
   type SkillDefinition,
@@ -36,6 +39,11 @@ import type {
 const WEIGHT_REQUIRED = 3;
 const WEIGHT_DEFAULT = 2;
 const WEIGHT_NICE = 1;
+
+/** How far either side of a resume skill mention to look for a proficiency
+ * signal. Wide enough to catch "5 years of X" or "led the X migration"
+ * without the window sprawling into an unrelated adjacent bullet. */
+const PROFICIENCY_WINDOW = 70;
 
 /**
  * Build a whole-token regex for one alias.
@@ -84,35 +92,130 @@ function countWords(text: string): number {
   return m ? m.length : 0;
 }
 
-/** First alias that appears in `text`, or null. */
-function findEvidence(skill: CompiledSkill, text: string): string | null {
+interface Match {
+  alias: string;
+  start: number;
+  end: number;
+}
+
+/** First alias occurrence of `skill` in `text`, with its position. */
+function findFirstMatch(skill: CompiledSkill, text: string): Match | null {
   for (const { alias, re } of skill.patterns) {
-    if (re.test(text)) return alias;
+    const m = re.exec(text);
+    if (m) return { alias, start: m.index, end: m.index + m[0].length };
   }
   return null;
 }
 
-/** Every skill mentioned anywhere in a document. */
+/**
+ * Heuristic read on how a resume talks about a skill it mentions.
+ *
+ * This is proximity text-matching, not language understanding — it cannot
+ * distinguish "5 years of Python" from a resume that happens to have "5 years"
+ * two bullets away. It is deliberately never used in the score for that exact
+ * reason; it only ever surfaces as an auxiliary label so a real signal isn't
+ * dressed up as more certain than it is.
+ */
+function classifyProficiency(window: string): NonNullable<SkillHit["proficiency"]> {
+  if (PROFICIENCY_STRONG_MARKERS.some((m) => window.includes(m))) return "demonstrated";
+  if (PROFICIENCY_WEAK_MARKERS.some((m) => window.includes(m))) return "learning";
+  return "mentioned";
+}
+
+/** Every skill mentioned anywhere in the resume, with a proficiency guess. */
 function extractSkills(text: string): Map<string, SkillHit> {
   const normalized = normalize(text);
   const found = new Map<string, SkillHit>();
 
   for (const skill of COMPILED) {
-    const evidence = findEvidence(skill, normalized);
-    if (evidence) {
-      found.set(skill.skill, {
-        skill: skill.skill,
-        category: skill.category,
-        weight: WEIGHT_DEFAULT,
-        evidence,
-      });
-    }
+    const match = findFirstMatch(skill, normalized);
+    if (!match) continue;
+
+    const windowStart = Math.max(0, match.start - PROFICIENCY_WINDOW);
+    const windowEnd = Math.min(normalized.length, match.end + PROFICIENCY_WINDOW);
+
+    found.set(skill.skill, {
+      skill: skill.skill,
+      category: skill.category,
+      weight: WEIGHT_DEFAULT,
+      evidence: match.alias,
+      proficiency: classifyProficiency(normalized.slice(windowStart, windowEnd)),
+    });
   }
   return found;
 }
 
 /**
- * Skills required by a job posting, weighted by framing.
+ * One line's skill occurrences, in reading order, with the raw text between
+ * consecutive pairs — everything `groupAlternatives` needs to decide whether
+ * they form an "X or Y" clause.
+ */
+function occurrencesInLine(line: string): { skill: string; start: number; end: number }[] {
+  const occurrences: { skill: string; start: number; end: number }[] = [];
+  for (const skill of COMPILED) {
+    const match = findFirstMatch(skill, line);
+    if (match) occurrences.push({ skill: skill.skill, start: match.start, end: match.end });
+  }
+  return occurrences.sort((a, b) => a.start - b.start);
+}
+
+/**
+ * A connector between two adjacent skill mentions that keeps them in the same
+ * alternatives clause: commas, "/", and the word "or", in any combination —
+ * "PyTorch or TensorFlow", "AWS/GCP/Azure", "React, Vue, or Angular" all need
+ * to link every step. A bare run of commas alone still matches (that's what
+ * lets a 3-item chain hold together up to its final "or"), so a chain's
+ * members are only actually joined as alternatives once at least one hop in
+ * it names an explicit "or" or "/" — see `groupAlternatives`. Anything else in
+ * the gap — "and", a period, an unrelated word — breaks the chain, which is
+ * what keeps a plain requirements list ("Python, SQL and Docker") from being
+ * misread as three interchangeable options.
+ */
+const CHAIN_CONNECTOR = /^[\s,]*(?:\/|\bor\b)?[\s,]*$/i;
+const STRONG_CONNECTOR = /\/|\bor\b/i;
+
+/**
+ * Group same-line skill mentions that form an "X or Y" alternatives clause.
+ *
+ * Returns arrays of 2+ canonical skill names that satisfy one requirement
+ * between them — the caller only needs one of a group present to count it.
+ * Chains with no explicit "or" or "/" between any of their members are left
+ * ungrouped, because a plain comma list in a posting almost always means "all
+ * of these", not "any of these".
+ */
+function groupAlternatives(line: string): string[][] {
+  const occurrences = occurrencesInLine(line);
+  if (occurrences.length < 2) return [];
+
+  const groups: string[][] = [];
+  let chain = [occurrences[0]];
+  let chainHasStrongConnector = false;
+
+  const flush = () => {
+    if (chain.length >= 2 && chainHasStrongConnector) {
+      groups.push([...new Set(chain.map((o) => o.skill))]);
+    }
+    chainHasStrongConnector = false;
+  };
+
+  for (let i = 1; i < occurrences.length; i++) {
+    const between = line.slice(chain[chain.length - 1].end, occurrences[i].start);
+    if (CHAIN_CONNECTOR.test(between)) {
+      chainHasStrongConnector ||= STRONG_CONNECTOR.test(between);
+      chain.push(occurrences[i]);
+    } else {
+      flush();
+      chain = [occurrences[i]];
+    }
+  }
+  flush();
+
+  return groups.filter((g) => g.length >= 2);
+}
+
+/**
+ * Skills required by a job posting, weighted by framing, plus any "X or Y"
+ * alternative clauses found along the way.
  *
  * Weighting is line-scoped with section memory: a "Requirements:" heading sets
  * the mode for the lines beneath it, but a line carrying its own marker
@@ -120,9 +223,10 @@ function extractSkills(text: string): Map<string, SkillHit> {
  * how postings are actually written, and it stops a single "nice to have"
  * heading from discounting an entire list of genuine requirements.
  */
-function extractRequirements(text: string): Map<string, SkillHit> {
+function extractRequirements(text: string): { hits: Map<string, SkillHit>; groups: string[][] } {
   const lines = normalize(text).split("\n");
-  const found = new Map<string, SkillHit>();
+  const hits = new Map<string, SkillHit>();
+  const groups: string[][] = [];
   let sectionWeight = WEIGHT_DEFAULT;
 
   for (const line of lines) {
@@ -142,35 +246,81 @@ function extractRequirements(text: string): Map<string, SkillHit> {
     else if (hasRequired) lineWeight = WEIGHT_REQUIRED;
 
     for (const skill of COMPILED) {
-      const evidence = findEvidence(skill, line);
-      if (!evidence) continue;
+      const match = findFirstMatch(skill, line);
+      if (!match) continue;
 
-      const existing = found.get(skill.skill);
+      const existing = hits.get(skill.skill);
       // A skill named twice keeps its strongest framing.
       if (!existing || lineWeight > existing.weight) {
-        found.set(skill.skill, {
+        hits.set(skill.skill, {
           skill: skill.skill,
           category: skill.category,
           weight: lineWeight,
-          evidence,
+          evidence: match.alias,
         });
       }
     }
+
+    groups.push(...groupAlternatives(line));
   }
-  return found;
+  return { hits, groups };
 }
 
-/** Score a set of requirements against a set of held skills. */
+/**
+ * One scoreable requirement: either a single skill, or an alternatives clause
+ * that any one member satisfies. Built from `hits` + `groups` by
+ * `buildUnits` — this is the shape every downstream calculation (score,
+ * categories, counterfactuals) actually operates on, so "PyTorch or
+ * TensorFlow" is counted once everywhere, not twice.
+ */
+interface RequirementUnit {
+  names: string[];
+  weight: number;
+}
+
+/**
+ * Collapse raw per-skill hits into requirement units, folding in whichever
+ * alternative groups were found.
+ *
+ * A group only survives if at least two of its members are skills the
+ * ontology actually recognised on that line (a group can reference a name
+ * that didn't separately register as a hit only in pathological input, but
+ * the filter is cheap insurance) and if none of its members already belongs
+ * to an earlier group — the first group to claim a skill wins, which avoids
+ * double-counting a skill mentioned in two different alternative clauses.
+ */
+function buildUnits(hits: Map<string, SkillHit>, groups: string[][]): RequirementUnit[] {
+  const claimed = new Set<string>();
+  const units: RequirementUnit[] = [];
+
+  for (const group of groups) {
+    const members = [...new Set(group)].filter((n) => hits.has(n) && !claimed.has(n));
+    if (members.length < 2) continue;
+
+    const weight = Math.max(...members.map((n) => hits.get(n)!.weight));
+    units.push({ names: members, weight });
+    members.forEach((n) => claimed.add(n));
+  }
+
+  for (const name of hits.keys()) {
+    if (claimed.has(name)) continue;
+    units.push({ names: [name], weight: hits.get(name)!.weight });
+  }
+
+  return units;
+}
+
+/** Score a set of requirement units against a set of held skills. */
 function scoreAgainst(
-  requirements: Map<string, SkillHit>,
+  units: RequirementUnit[],
   held: Set<string>,
 ): { score: number; matchedWeight: number; totalWeight: number } {
   let matchedWeight = 0;
   let totalWeight = 0;
 
-  for (const [name, hit] of requirements) {
-    totalWeight += hit.weight;
-    if (held.has(name)) matchedWeight += hit.weight;
+  for (const unit of units) {
+    totalWeight += unit.weight;
+    if (unit.names.some((n) => held.has(n))) matchedWeight += unit.weight;
   }
 
   const score = totalWeight === 0 ? 0 : Math.round((matchedWeight / totalWeight) * 100);
@@ -184,17 +334,31 @@ function bandFor(score: number): MatchResult["band"] {
   return "weak";
 }
 
+/**
+ * Category breakdown, computed at the same unit granularity as the score.
+ *
+ * This has to walk `units` rather than `hits` directly, or an alternatives
+ * clause like "PyTorch or TensorFlow" would count as two required ML skills
+ * with one matched — a category bar reading "1/2" for a requirement the
+ * headline score already treats as fully satisfied is exactly the kind of
+ * quiet inconsistency this project exists to not have.
+ */
 function buildCategories(
-  requirements: Map<string, SkillHit>,
+  units: RequirementUnit[],
+  hits: Map<string, SkillHit>,
   held: Set<string>,
 ): CategoryScore[] {
   const buckets = new Map<SkillCategory, { matched: number; required: number }>();
 
-  for (const [name, hit] of requirements) {
-    const bucket = buckets.get(hit.category) ?? { matched: 0, required: 0 };
+  for (const unit of units) {
+    // Alternatives are near-always same-category (PyTorch/TensorFlow are both
+    // "ml"); the first member is a reasonable representative on the rare
+    // occasion they differ.
+    const category = hits.get(unit.names[0])!.category;
+    const bucket = buckets.get(category) ?? { matched: 0, required: 0 };
     bucket.required += 1;
-    if (held.has(name)) bucket.matched += 1;
-    buckets.set(hit.category, bucket);
+    if (unit.names.some((n) => held.has(n))) bucket.matched += 1;
+    buckets.set(category, bucket);
   }
 
   return CATEGORY_ORDER.filter((c) => buckets.has(c)).map((category) => {
@@ -214,37 +378,43 @@ function buildCategories(
  *
  * Each candidate is scored by re-running the real scorer with that skill added
  * to the held set, so the delta shown to the user is the delta they would get.
- * Heavier requirements naturally rise to the top without a hand-tuned ranking.
+ * For an unsatisfied alternatives clause, every member unlocks the same unit
+ * weight, so the delta is computed once and the suggestion names the whole
+ * clause ("AWS or GCP or Azure") rather than listing each alternative
+ * separately with an identical number next to it.
  */
 function buildCounterfactuals(
-  requirements: Map<string, SkillHit>,
+  units: RequirementUnit[],
+  hits: Map<string, SkillHit>,
   held: Set<string>,
   baseScore: number,
 ): Counterfactual[] {
   const out: Counterfactual[] = [];
 
-  for (const [name, hit] of requirements) {
-    if (held.has(name)) continue;
+  for (const unit of units) {
+    if (unit.names.some((n) => held.has(n))) continue;
 
     const hypothetical = new Set(held);
-    hypothetical.add(name);
-    const { score } = scoreAgainst(requirements, hypothetical);
+    hypothetical.add(unit.names[0]);
+    const { score } = scoreAgainst(units, hypothetical);
     const delta = score - baseScore;
     if (delta <= 0) continue;
 
+    const first = hits.get(unit.names[0])!;
     const framing =
-      hit.weight === WEIGHT_REQUIRED
+      unit.weight === WEIGHT_REQUIRED
         ? "listed as a hard requirement"
-        : hit.weight === WEIGHT_NICE
+        : unit.weight === WEIGHT_NICE
           ? "listed as a nice-to-have"
           : "named in the posting";
 
-    out.push({
-      skill: name,
-      category: hit.category,
-      delta,
-      reason: `${name} is ${framing} and is absent from the resume.`,
-    });
+    const label = unit.names.join(" or ");
+    const reason =
+      unit.names.length > 1
+        ? `Any one of ${label} is ${framing}, and none of them is on the resume.`
+        : `${label} is ${framing} and is absent from the resume.`;
+
+    out.push({ skill: label, category: first.category, delta, reason });
   }
 
   return out.sort((a, b) => b.delta - a.delta).slice(0, 6);
@@ -344,20 +514,37 @@ function buildAtsChecks(resume: string, matchedCount: number): AtsCheck[] {
  */
 export function analyzeMatch(resume: string, job: string): MatchResult {
   const resumeSkills = extractSkills(resume);
-  const requirements = extractRequirements(job);
+  const { hits, groups } = extractRequirements(job);
   const held = new Set(resumeSkills.keys());
+  const units = buildUnits(hits, groups);
 
-  const { score } = scoreAgainst(requirements, held);
+  const { score } = scoreAgainst(units, held);
 
   const matched: SkillHit[] = [];
   const missing: SkillHit[] = [];
 
-  for (const [name, hit] of requirements) {
-    if (held.has(name)) {
-      // Report the resume's own evidence for a match, not the posting's.
-      matched.push({ ...hit, evidence: resumeSkills.get(name)?.evidence ?? hit.evidence });
+  for (const unit of units) {
+    const heldName = unit.names.find((n) => held.has(n));
+
+    if (heldName) {
+      const hit = hits.get(heldName)!;
+      const alternatives = unit.names.filter((n) => n !== heldName);
+      matched.push({
+        ...hit,
+        // Report the resume's own evidence and proficiency guess for a match,
+        // not the posting's.
+        evidence: resumeSkills.get(heldName)?.evidence ?? hit.evidence,
+        proficiency: resumeSkills.get(heldName)?.proficiency,
+        alternatives: alternatives.length ? alternatives : undefined,
+      });
     } else {
-      missing.push(hit);
+      // Nothing in this unit is held — every alternative is a real gap, each
+      // aware that satisfying any sibling would close the same gap.
+      for (const name of unit.names) {
+        const hit = hits.get(name)!;
+        const alternatives = unit.names.filter((n) => n !== name);
+        missing.push({ ...hit, alternatives: alternatives.length ? alternatives : undefined });
+      }
     }
   }
 
@@ -367,7 +554,7 @@ export function analyzeMatch(resume: string, job: string): MatchResult {
   missing.sort(byWeightThenName);
 
   const extra: SkillHit[] = [...resumeSkills.values()]
-    .filter((hit) => !requirements.has(hit.skill))
+    .filter((hit) => !hits.has(hit.skill))
     .sort((a, b) => a.skill.localeCompare(b.skill));
 
   return {
@@ -376,14 +563,14 @@ export function analyzeMatch(resume: string, job: string): MatchResult {
     matched,
     missing,
     extra,
-    categories: buildCategories(requirements, held),
-    counterfactuals: buildCounterfactuals(requirements, held, score),
+    categories: buildCategories(units, hits, held),
+    counterfactuals: buildCounterfactuals(units, hits, held, score),
     ats: buildAtsChecks(resume, matched.length),
     stats: {
       resumeWords: countWords(resume),
       jobWords: countWords(job),
       skillsDetected: resumeSkills.size,
-      requirementsDetected: requirements.size,
+      requirementsDetected: hits.size,
     },
   };
 }
@@ -393,8 +580,11 @@ export const __internals = {
   aliasPattern,
   extractSkills,
   extractRequirements,
+  buildUnits,
+  groupAlternatives,
   scoreAgainst,
   bandFor,
+  classifyProficiency,
   WEIGHT_REQUIRED,
   WEIGHT_DEFAULT,
   WEIGHT_NICE,

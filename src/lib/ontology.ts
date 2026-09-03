@@ -66,6 +66,13 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "MATLAB", category: "languages", aliases: ["matlab"] },
   { skill: "SQL", category: "languages", aliases: ["sql", "ansi sql"] },
   { skill: "Bash", category: "languages", aliases: ["bash", "shell", "zsh", "shell scripting"] },
+  { skill: "Objective-C", category: "languages", aliases: ["objective-c", "objective c", "objc"] },
+  { skill: "Perl", category: "languages", aliases: ["perl"] },
+  { skill: "Haskell", category: "languages", aliases: ["haskell"] },
+  { skill: "Elixir", category: "languages", aliases: ["elixir"] },
+  { skill: "Dart", category: "languages", aliases: ["dart"] },
+  { skill: "Assembly", category: "languages", aliases: ["assembly", "asm", "assembly language"] },
+  { skill: "Julia", category: "languages", aliases: ["julia"] },
 
   // --------------------------------------------------------------- frameworks
   { skill: "React", category: "frameworks", aliases: ["react", "reactjs", "react.js"] },
@@ -84,6 +91,13 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "React Native", category: "frameworks", aliases: ["react native"] },
   { skill: "Flutter", category: "frameworks", aliases: ["flutter"] },
   { skill: "Unity", category: "frameworks", aliases: ["unity", "unity3d"] },
+  { skill: "NestJS", category: "frameworks", aliases: ["nestjs", "nest.js"] },
+  { skill: "Laravel", category: "frameworks", aliases: ["laravel"] },
+  { skill: "ASP.NET Core", category: "frameworks", aliases: ["asp.net core", "asp.net", "aspnet"] },
+  { skill: "Gatsby", category: "frameworks", aliases: ["gatsby", "gatsbyjs"] },
+  { skill: "Remix", category: "frameworks", aliases: ["remix"] },
+  { skill: "Electron", category: "frameworks", aliases: ["electron", "electronjs"] },
+  { skill: "Ionic", category: "frameworks", aliases: ["ionic"] },
 
   // ----------------------------------------------------------------------- ml
   { skill: "Machine Learning", category: "ml", aliases: ["machine learning", "ml", "statistical learning"] },
@@ -102,6 +116,11 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "MLOps", category: "ml", aliases: ["mlops", "model deployment", "model serving", "mlflow"] },
   { skill: "Vector Search", category: "ml", aliases: ["faiss", "vector database", "vector search", "pinecone", "chromadb", "embeddings"] },
   { skill: "Reinforcement Learning", category: "ml", aliases: ["reinforcement learning", "rl"] },
+  { skill: "GANs", category: "ml", aliases: ["gan", "gans", "generative adversarial network", "generative adversarial networks"] },
+  { skill: "Time Series Forecasting", category: "ml", aliases: ["time series", "time series forecasting", "time series analysis"] },
+  { skill: "Recommendation Systems", category: "ml", aliases: ["recommendation system", "recommendation systems", "recommender system", "recommender systems"] },
+  { skill: "AutoML", category: "ml", aliases: ["automl", "auto-ml", "automated machine learning"] },
+  { skill: "ONNX", category: "ml", aliases: ["onnx"] },
 
   // --------------------------------------------------------------------- data
   { skill: "pandas", category: "data", aliases: ["pandas"] },
@@ -113,6 +132,10 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "Tableau", category: "data", aliases: ["tableau", "power bi", "powerbi", "looker"] },
   { skill: "Statistics", category: "data", aliases: ["statistics", "statistical analysis", "hypothesis testing", "a/b testing", "ab testing"] },
   { skill: "Kafka", category: "data", aliases: ["kafka", "streaming", "event streaming"] },
+  { skill: "dbt", category: "data", aliases: ["dbt", "data build tool"] },
+  { skill: "Databricks", category: "data", aliases: ["databricks"] },
+  { skill: "Feature Engineering", category: "data", aliases: ["feature engineering", "feature store"] },
+  { skill: "Data Quality", category: "data", aliases: ["data quality", "great expectations", "data validation"] },
 
   // ---------------------------------------------------------------- databases
   { skill: "PostgreSQL", category: "databases", aliases: ["postgresql", "postgres", "psql"] },
@@ -123,6 +146,10 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "DynamoDB", category: "databases", aliases: ["dynamodb", "dynamo"] },
   { skill: "Elasticsearch", category: "databases", aliases: ["elasticsearch", "opensearch", "elastic"] },
   { skill: "Snowflake", category: "databases", aliases: ["snowflake", "bigquery", "redshift", "data warehouse"] },
+  { skill: "Cassandra", category: "databases", aliases: ["cassandra"] },
+  { skill: "Neo4j", category: "databases", aliases: ["neo4j", "graph database"] },
+  { skill: "Supabase", category: "databases", aliases: ["supabase"] },
+  { skill: "Firebase", category: "databases", aliases: ["firebase", "firestore"] },
 
   // -------------------------------------------------------------------- cloud
   { skill: "AWS", category: "cloud", aliases: ["aws", "amazon web services", "ec2", "s3", "lambda", "cloudwatch"] },
@@ -130,6 +157,10 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "GCP", category: "cloud", aliases: ["gcp", "google cloud", "google cloud platform"] },
   { skill: "Serverless", category: "cloud", aliases: ["serverless", "cloud functions", "faas"] },
   { skill: "Cloud Architecture", category: "cloud", aliases: ["cloud architecture", "distributed systems", "system design", "scalability"] },
+  { skill: "Heroku", category: "cloud", aliases: ["heroku"] },
+  { skill: "DigitalOcean", category: "cloud", aliases: ["digitalocean", "digital ocean"] },
+  { skill: "Vercel", category: "cloud", aliases: ["vercel"] },
+  { skill: "CDN", category: "cloud", aliases: ["cdn", "content delivery network", "cloudfront"] },
 
   // ------------------------------------------------------------------- devops
   { skill: "Docker", category: "devops", aliases: ["docker", "containers", "containerization"] },
@@ -139,6 +170,10 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "Git", category: "devops", aliases: ["git", "github", "gitlab", "version control"] },
   { skill: "Linux", category: "devops", aliases: ["linux", "unix", "ubuntu"] },
   { skill: "Monitoring", category: "devops", aliases: ["monitoring", "observability", "prometheus", "grafana", "datadog", "logging"] },
+  { skill: "Ansible", category: "devops", aliases: ["ansible"] },
+  { skill: "Nginx", category: "devops", aliases: ["nginx"] },
+  { skill: "Helm", category: "devops", aliases: ["helm chart", "helm charts", "helm"] },
+  { skill: "ArgoCD", category: "devops", aliases: ["argocd", "argo cd"] },
 
   // ------------------------------------------------------------------- design
   { skill: "HTML/CSS", category: "design", aliases: ["html", "css", "html5", "css3", "scss", "sass"] },
@@ -147,6 +182,9 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "Figma", category: "design", aliases: ["figma", "sketch", "adobe xd"] },
   { skill: "Accessibility", category: "design", aliases: ["accessibility", "a11y", "wcag"] },
   { skill: "Responsive Design", category: "design", aliases: ["responsive design", "responsive", "mobile-first"] },
+  { skill: "Webpack", category: "design", aliases: ["webpack"] },
+  { skill: "Vite", category: "design", aliases: ["vite"] },
+  { skill: "Storybook", category: "design", aliases: ["storybook"] },
 
   // ---------------------------------------------------------------- practices
   { skill: "Testing", category: "practices", aliases: ["testing", "unit testing", "unit tests", "pytest", "jest", "vitest", "test-driven", "tdd"] },
@@ -158,6 +196,11 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "Security", category: "practices", aliases: ["security", "authentication", "authorization", "oauth", "encryption", "owasp"] },
   { skill: "Performance", category: "practices", aliases: ["performance optimization", "performance tuning", "profiling", "caching"] },
   { skill: "Documentation", category: "practices", aliases: ["documentation", "technical writing"] },
+  { skill: "gRPC", category: "practices", aliases: ["grpc", "protobuf", "protocol buffers"] },
+  { skill: "Message Queues", category: "practices", aliases: ["message queue", "message queues", "rabbitmq", "amqp", "sqs"] },
+  { skill: "Design Patterns", category: "practices", aliases: ["design patterns", "design pattern"] },
+  { skill: "SOLID Principles", category: "practices", aliases: ["solid principles", "solid design"] },
+  { skill: "Event-Driven Architecture", category: "practices", aliases: ["event-driven", "event driven", "event-driven architecture"] },
 
   // --------------------------------------------------------------------- soft
   { skill: "Collaboration", category: "soft", aliases: ["collaboration", "cross-functional", "teamwork", "team player"] },
@@ -165,6 +208,7 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "Leadership", category: "soft", aliases: ["leadership", "mentoring", "mentorship", "led a team", "team lead"] },
   { skill: "Problem Solving", category: "soft", aliases: ["problem solving", "problem-solving", "analytical thinking"] },
   { skill: "Ownership", category: "soft", aliases: ["ownership", "end-to-end", "self-directed", "autonomy"] },
+  { skill: "Adaptability", category: "soft", aliases: ["adaptability", "adaptable", "fast-paced environment"] },
 ];
 
 /**
@@ -203,6 +247,30 @@ export const NICE_TO_HAVE_MARKERS = [
   "exposure to",
   "a plus",
   "good to have",
+];
+
+/**
+ * Language near a resume skill mention that reads as demonstrated depth
+ * rather than a bare keyword — years of experience, ownership, production
+ * use. Used only for the auxiliary proficiency label; never the score.
+ */
+export const PROFICIENCY_STRONG_MARKERS = [
+  "years", "yrs", "year of", "led", "owned", "architected", "built", "shipped",
+  "deployed", "scaled", "production", "senior", "expert", "advanced",
+  "extensive experience", "deep experience", "proficient", "mastery",
+  "spearheaded", "drove", "managed",
+];
+
+/**
+ * Language near a resume skill mention that reads as early or partial
+ * exposure rather than demonstrated depth — coursework, self-study, a toy
+ * project. Same caveat as above: a proximity heuristic, not a judgment.
+ */
+export const PROFICIENCY_WEAK_MARKERS = [
+  "familiar with", "familiarity with", "exposure to", "basic", "beginner",
+  "learning", "currently learning", "some experience", "introductory",
+  "coursework", "academic project", "personal project", "side project",
+  "self-taught", "intro to",
 ];
 
 /** Total distinct skills the ontology can recognise, surfaced in the UI. */
