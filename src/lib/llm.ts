@@ -34,7 +34,7 @@ const PROVIDERS: ProviderConfig[] = [
     label: "Groq",
     envVar: "GROQ_API_KEY",
     baseURL: "https://api.groq.com/openai/v1",
-    defaultModel: "llama-3.3-70b-versatile",
+    defaultModel: "openai/gpt-oss-120b",
   },
   {
     id: "gemini",
@@ -174,7 +174,10 @@ export async function generateNarrative(
     const completion = await client.chat.completions.create({
       model,
       temperature: 0.4,
-      max_tokens: 700,
+      // Generous because several current defaults are reasoning models: they
+      // spend tokens thinking before emitting any content, and a budget sized
+      // only for the JSON comes back with an empty `content` field.
+      max_tokens: 2000,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: buildUserPrompt(result, resume, job) },
