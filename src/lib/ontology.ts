@@ -73,6 +73,7 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "Dart", category: "languages", aliases: ["dart"] },
   { skill: "Assembly", category: "languages", aliases: ["assembly", "asm", "assembly language"] },
   { skill: "Julia", category: "languages", aliases: ["julia"] },
+  { skill: "Solidity", category: "languages", aliases: ["solidity"] },
 
   // --------------------------------------------------------------- frameworks
   { skill: "React", category: "frameworks", aliases: ["react", "reactjs", "react.js"] },
@@ -98,6 +99,12 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "Remix", category: "frameworks", aliases: ["remix"] },
   { skill: "Electron", category: "frameworks", aliases: ["electron", "electronjs"] },
   { skill: "Ionic", category: "frameworks", aliases: ["ionic"] },
+  { skill: "Redux", category: "frameworks", aliases: ["redux", "redux toolkit", "rtk"] },
+  { skill: "Zustand", category: "frameworks", aliases: ["zustand"] },
+  { skill: "MobX", category: "frameworks", aliases: ["mobx"] },
+  { skill: "React Query", category: "frameworks", aliases: ["react query", "tanstack query", "tanstack"] },
+  { skill: "SwiftUI", category: "frameworks", aliases: ["swiftui", "swift ui"] },
+  { skill: "Jetpack Compose", category: "frameworks", aliases: ["jetpack compose"] },
 
   // ----------------------------------------------------------------------- ml
   { skill: "Machine Learning", category: "ml", aliases: ["machine learning", "ml", "statistical learning"] },
@@ -121,6 +128,7 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "Recommendation Systems", category: "ml", aliases: ["recommendation system", "recommendation systems", "recommender system", "recommender systems"] },
   { skill: "AutoML", category: "ml", aliases: ["automl", "auto-ml", "automated machine learning"] },
   { skill: "ONNX", category: "ml", aliases: ["onnx"] },
+  { skill: "LLM Orchestration", category: "ml", aliases: ["langchain", "llamaindex", "llama index"] },
 
   // --------------------------------------------------------------------- data
   { skill: "pandas", category: "data", aliases: ["pandas"] },
@@ -185,6 +193,8 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "Webpack", category: "design", aliases: ["webpack"] },
   { skill: "Vite", category: "design", aliases: ["vite"] },
   { skill: "Storybook", category: "design", aliases: ["storybook"] },
+  { skill: "Linting & Formatting", category: "design", aliases: ["eslint", "prettier", "linting"] },
+  { skill: "CMS", category: "design", aliases: ["wordpress", "contentful", "strapi", "sanity", "cms", "content management system"] },
 
   // ---------------------------------------------------------------- practices
   { skill: "Testing", category: "practices", aliases: ["testing", "unit testing", "unit tests", "pytest", "jest", "vitest", "test-driven", "tdd"] },
@@ -201,6 +211,10 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "Design Patterns", category: "practices", aliases: ["design patterns", "design pattern"] },
   { skill: "SOLID Principles", category: "practices", aliases: ["solid principles", "solid design"] },
   { skill: "Event-Driven Architecture", category: "practices", aliases: ["event-driven", "event driven", "event-driven architecture"] },
+  { skill: "E2E Testing", category: "practices", aliases: ["cypress", "playwright", "selenium", "webdriver", "end-to-end testing", "e2e testing"] },
+  { skill: "API Tooling", category: "practices", aliases: ["postman", "swagger", "openapi"] },
+  { skill: "Project Management Tools", category: "practices", aliases: ["jira", "confluence", "trello", "asana"] },
+  { skill: "Web3", category: "practices", aliases: ["web3", "ethereum", "smart contracts"] },
 
   // --------------------------------------------------------------------- soft
   { skill: "Collaboration", category: "soft", aliases: ["collaboration", "cross-functional", "teamwork", "team player"] },
