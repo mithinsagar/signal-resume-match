@@ -195,6 +195,8 @@ export const SKILLS: SkillDefinition[] = [
   { skill: "Storybook", category: "design", aliases: ["storybook"] },
   { skill: "Linting & Formatting", category: "design", aliases: ["eslint", "prettier", "linting"] },
   { skill: "CMS", category: "design", aliases: ["wordpress", "contentful", "strapi", "sanity", "cms", "content management system"] },
+  { skill: "UI Component Libraries", category: "design", aliases: ["bootstrap", "material ui", "material-ui", "mui", "chakra ui", "chakra", "ant design", "antd"] },
+  { skill: "CSS-in-JS", category: "design", aliases: ["styled-components", "styled components", "css-in-js", "emotion"] },
 
   // ---------------------------------------------------------------- practices
   { skill: "Testing", category: "practices", aliases: ["testing", "unit testing", "unit tests", "pytest", "jest", "vitest", "test-driven", "tdd"] },
