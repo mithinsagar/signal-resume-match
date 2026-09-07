@@ -45,7 +45,7 @@ not a degraded mode; it is the product working as designed.
 
 ## What it actually does
 
-**Alias-aware skill matching.** 157 canonical skills across 10 categories, 439 surface forms.
+**Alias-aware skill matching.** 159 canonical skills across 10 categories, 451 surface forms.
 "postgres", "PostgreSQL" and "psql" resolve to one skill, so the tool doesn't report a gap that
 isn't there — the most common way naive keyword matching produces a wrong answer.
 
@@ -144,7 +144,7 @@ and default model differ. Override the model with `LLM_MODEL` if a default goes 
 src/
 ├── lib/
 │   ├── analyze.ts      the deterministic engine — owns the score, pure
-│   ├── ontology.ts     157 skills, 439 aliases, requirement + proficiency markers
+│   ├── ontology.ts     159 skills, 451 aliases, requirement + proficiency markers
 │   ├── llm.ts          optional narrative, 4 providers, fails to null
 │   ├── history.ts      localStorage persistence
 │   ├── samples.ts      built-in demo pair
@@ -195,7 +195,7 @@ exists to argue against.
   with"), but this is proximity text-matching over a fixed window, not comprehension. It can be
   fooled by an unrelated "5 years" two bullets away, and it never influences the score, on purpose —
   see "A proficiency signal, held apart from the score" above.
-- **Ontology-bounded.** A skill outside the 157 in `ontology.ts` is invisible to the scorer. The
+- **Ontology-bounded.** A skill outside the 159 in `ontology.ts` is invisible to the scorer. The
   ontology is deliberately readable and easy to extend for exactly this reason.
 - **Scanned PDFs need a second, slower pass.** OCR runs in your browser, not on the server, which
   avoids a serverless timeout but means it's bounded by your machine instead — a many-page scan can
